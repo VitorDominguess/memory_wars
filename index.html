@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Memory Wars - Remoto</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<!--
+  ============================================================
+  CONFIGURAÇÃO DO FIREBASE
+  Substitua o objeto abaixo pelo que o Firebase te deu ao
+  registrar seu app Web (Console > Configurações do projeto
+  > Seus apps > ícone </> ). Essas chaves são públicas, não
+  precisa esconder nem tratar como segredo.
+  ============================================================
+-->
+<script type="module">
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyACkQvVLWyCItyEjPaMRpYSgsP2luAq2WQ",
+  authDomain: "memory-wars-6bb6b.firebaseapp.com",
+  databaseURL: "https://memory-wars-6bb6b-default-rtdb.firebaseio.com",
+  projectId: "memory-wars-6bb6b",
+  storageBucket: "memory-wars-6bb6b.firebasestorage.app",
+  messagingSenderId: "635970774104",
+  appId: "1:635970774104:web:9b432ef95c179939a5d62d",
+  measurementId: "G-YDVE6W41KP"
+};
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+  // Expõe no escopo global porque o resto do jogo é um <script> comum
+  // (não-módulo) que usa onclick="..." nos botões.
+  window.__fb = { ref, set, get, onValue, off, db };
+</script>
+<style>
+  :root {
+    --bg-dark: #0a0f1c;
+    --p1-color: #00f0ff;
+    --p1-glow: rgba(0, 240, 255, 0.4);
+    --p2-color: #ff003c;
+    --p2-glow: rgba(255, 0, 60, 0.4);
+    --card-bg: rgba(30, 41, 59, 0.8);
+    --glass-bg: rgba(16, 25, 43, 0.7);
+    --good: #00ff88;
+    --me: var(--p1-color);
+    --me-glow: var(--p1-glow);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1a2342, var(--bg-dark) 60%);
+    color: white;
+    font-family: 'Inter', sans-serif;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  h1,h2,h3,.score,.mono { font-family: 'Orbitron', sans-serif; text-transform: uppercase; margin:0; }
+  button { font-family: inherit; }
+  .screen { display:none; min-height:100dvh; flex-direction:column; }
+  .screen.show { display:flex; }
+
+  .container { width:100%; max-width: 480px; margin:0 auto; padding: 20px 16px; }
+
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 1.6rem;
+    border-radius: 18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 0 20px rgba(255,255,255,0.02);
+  }
+
+  input, select {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.3);
+    color: white;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.05rem;
+    outline: none;
+    margin: 8px 0 18px;
+  }
+  input:focus, select:focus { border-color: var(--p1-color); box-shadow: 0 0 10px var(--p1-glow); }
+  label { font-size: 0.8rem; color:#a0aec0; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    min-height: 52px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: linear-gradient(90deg, var(--p1-color), #00a2ff); color:#000; box-shadow: 0 6px 20px var(--p1-glow); }
+  .btn-secondary { background: rgba(255,255,255,0.06); color:white; border: 1px solid rgba(255,255,255,0.2); margin-top: 12px; }
+  .btn-danger { background: linear-gradient(90deg, var(--p2-color), #a30022); color:white; box-shadow: 0 6px 20px var(--p2-glow); }
+  .btn[disabled] { opacity:0.4; cursor:not-allowed; }
+
+  .divider { text-align:center; color:#556; font-size:0.75rem; letter-spacing:2px; margin: 22px 0; text-transform:uppercase; }
+
+  .hidden { display:none !important; }
+
+  /* --- LOBBY --- */
+  #screen-setup .container { justify-content:center; flex:1; display:flex; flex-direction:column; }
+  .logo { text-align:center; margin-bottom: 30px; }
+  .logo h1 { font-size: 2.4rem; color: var(--p1-color); text-shadow: 0 0 15px var(--p1-glow); }
+  .logo p { color:#a0aec0; margin-top:6px; font-size:0.9rem; }
+  .form-alert { color: #ffcc00; font-size: 0.82rem; text-align:center; min-height: 18px; margin-top: 8px; }
+
+  /* --- WAITING --- */
+  #screen-waiting .container { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
+  .room-code {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+    letter-spacing: 8px;
+    padding: 20px 10px;
+    border: 2px dashed var(--p1-color);
+    border-radius: 14px;
+    margin: 20px 0;
+    color: var(--p1-color);
+    text-shadow: 0 0 15px var(--p1-glow);
+    cursor: pointer;
+  }
+  .spinner {
+    width: 34px; height: 34px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: var(--p1-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 18px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* --- GAME --- */
+  #screen-game { display:none; }
+  #screen-game.show { display:flex; }
+  #topbar {
+    position: sticky; top:0; z-index: 30;
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 10px 14px calc(10px + env(safe-area-inset-top)/2);
+    background: rgba(10,15,28,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .player-tag { text-align:center; flex:1; }
+  .player-tag .name { font-size: 0.68rem; color:#a0aec0; letter-spacing:0.5px; }
+  .player-tag .score { font-size: 1.6rem; }
+  .player-tag.me .score { color: var(--p1-color); }
+  .player-tag.opp .score { color: var(--p2-color); }
+  #turn-indicator {
+    font-family:'Orbitron',sans-serif;
+    text-align:center;
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+    padding: 6px 0;
+    background: rgba(255,255,255,0.04);
+  }
+  #turn-indicator.mine { color: var(--good); }
+  #turn-indicator.theirs { color:#a0aec0; }
+
+  #overlay-effects {
+    position: fixed; inset:0; pointer-events:none; z-index: 20; display:none;
+  }
+  body.effect-neblina #overlay-effects { display:block; backdrop-filter: blur(10px) grayscale(50%); background: rgba(255,255,255,0.05); }
+  body.effect-apagao #overlay-effects { display:block; background: rgba(0,0,0,0.95); }
+  @keyframes staticNoise { 0%{background-position:0 0;} 100%{background-position:0 20px;} }
+  body.effect-chuvisco #overlay-effects {
+    display:block;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15), rgba(0,0,0,0.15) 2px, transparent 2px, transparent 4px);
+    background-size: 100% 4px; animation: staticNoise 0.1s infinite linear; mix-blend-mode: overlay;
+  }
+  @keyframes realShake {
+    0%,100% { transform: translate(0,0); } 20% { transform: translate(-6px,3px);} 40% { transform: translate(6px,-4px);}
+    60% { transform: translate(-4px,4px);} 80% { transform: translate(4px,-3px);}
+  }
+  body.effect-terremoto #board-wrap { animation: realShake 0.15s infinite; }
+
+  #board-wrap { padding: 16px; display:flex; justify-content:center; }
+  #board {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+    gap: 8px;
+    max-width: 480px;
+    width: 100%;
+    perspective: 1000px;
+  }
+  .card { aspect-ratio: 0.72; position:relative; transform-style:preserve-3d; transition: transform 0.5s cubic-bezier(.4,.2,.2,1); cursor:pointer; }
+  .card.flipped { transform: rotateY(180deg); }
+  @keyframes matchPop {
+    0% { transform: rotateY(180deg) scale(1);} 50% { transform: rotateY(180deg) scale(1.15); box-shadow:0 0 20px var(--good);}
+    100% { transform: rotateY(180deg) scale(0); opacity:0; }
+  }
+  .card.matched { animation: matchPop 0.7s forwards; pointer-events:none; }
+  @keyframes shakeWrong {
+    0%,100% { transform: rotateY(180deg) translateX(0); } 25% { transform: rotateY(180deg) translateX(-6px); }
+    75% { transform: rotateY(180deg) translateX(6px); }
+  }
+  .card.wrong { animation: shakeWrong 0.35s ease; }
+  .card.wrong .card-front { border-color: var(--p2-color); box-shadow: 0 0 12px var(--p2-glow); }
+  .card.locked { cursor:not-allowed; }
+  .card-face { width:100%; height:100%; position:absolute; backface-visibility:hidden; display:flex; align-items:center; justify-content:center; font-size: 1.6rem; border-radius: 10px; box-shadow: 0 6px 12px rgba(0,0,0,0.4); }
+  .card-back { background: linear-gradient(135deg, var(--card-bg), #0f172a); border: 1px solid rgba(255,255,255,0.15); }
+  .card-front { background: radial-gradient(circle,#334155,#1e293b); border: 2px solid #fff; transform: rotateY(180deg); }
+
+  #powers-panel { padding: 8px 14px 24px; }
+  #powers-panel h3 { font-size:0.8rem; color:#a0aec0; letter-spacing:1px; margin-bottom:10px; }
+  .power-btn {
+    width:100%; text-align:left; padding: 12px 14px; margin-bottom:10px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.1); color:white; border-radius:12px; cursor:pointer; min-height:52px;
+  }
+  .power-btn strong { font-family:'Orbitron',sans-serif; font-size:0.85rem; }
+  .power-btn .power-desc { font-size:0.72rem; color:#a0aec0; margin-top:4px; line-height:1.3; }
+  .power-btn:disabled { opacity:0.25; filter:grayscale(1); cursor:not-allowed; }
+  .power-btn.locked-turn { opacity:0.35; filter:grayscale(0.6); cursor:not-allowed; }
+
+  #opp-powers { text-align:center; font-size:0.75rem; color:#a0aec0; margin: 6px 0 4px; }
+
+  #leave-btn { margin: 6px 14px 10px; }
+
+  #alert-box {
+    position: fixed; top:-100px; left:50%; transform:translateX(-50%);
+    background: rgba(10,15,28,0.95); border:2px solid var(--p1-color); padding: 12px 26px; border-radius: 30px;
+    z-index: 1000; font-weight:bold; font-family:'Orbitron',sans-serif; font-size:0.8rem; text-align:center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px var(--p1-glow);
+    transition: top 0.4s cubic-bezier(.68,-0.55,.265,1.55);
+    max-width: 90vw;
+  }
+  #alert-box.show { top: calc(env(safe-area-inset-top) + 10px); }
+
+  #end-modal-overlay {
+    position: fixed; inset:0; background: rgba(5,8,16,0.9); backdrop-filter: blur(6px);
+    display:none; align-items:center; justify-content:center; z-index: 2000; padding: 20px;
+  }
+  #end-modal-overlay.show { display:flex; }
+  #end-modal { text-align:center; width:100%; max-width: 380px; }
+  #end-modal h1 { font-size: 1.6rem; color: var(--good); text-shadow: 0 0 15px rgba(0,255,136,0.5); margin-bottom: 16px; }
+  .end-score-row { display:flex; justify-content:space-between; font-family:'Orbitron',sans-serif; padding: 10px 0; border-bottom:1px solid rgba(255,255,255,0.1); font-size:0.9rem; }
+
+  /* Desktop enhancement (mobile-first base above) */
+  @media (min-width: 700px) {
+    .container { padding: 40px 16px; }
+    #board { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 12px; }
+    .card-face { font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay-effects"></div>
+<div id="alert-box">Alerta!</div>
+
+<!-- SETUP / LOBBY -->
+<section id="screen-setup" class="screen show">
+  <div class="container">
+    <div class="logo">
+      <h1>Memory Wars</h1>
+      <p>Duelo remoto · cada um no seu celular</p>
+    </div>
+    <div class="glass-panel">
+      <label for="name-input">Seu nome</label>
+      <input id="name-input" type="text" maxlength="16" placeholder="Ex: Ana">
+
+      <div id="create-block">
+        <label for="pairs-select">Pares (quem cria escolhe)</label>
+        <select id="pairs-select">
+          <option value="6">6 pares · rápido</option>
+          <option value="8" selected>8 pares · recomendado</option>
+          <option value="10">10 pares</option>
+          <option value="12">12 pares</option>
+        </select>
+        <button class="btn btn-primary" onclick="createRoom()">Criar Sala</button>
+      </div>
+
+      <div class="divider">ou</div>
+
+      <div id="join-block">
+        <label for="join-code-input">Código da sala</label>
+        <input id="join-code-input" type="text" maxlength="4" placeholder="EX: A1B2" style="text-transform:uppercase; letter-spacing:4px; text-align:center;">
+        <button class="btn btn-secondary" onclick="joinRoom()">Entrar em Sala</button>
+      </div>
+
+      <div class="form-alert" id="form-alert"></div>
+    </div>
+  </div>
+</section>
+
+<!-- WAITING ROOM -->
+<section id="screen-waiting" class="screen">
+  <div class="container">
+    <h2 style="text-align:center; color:#a0aec0; font-size:1rem; letter-spacing:1px;">Envie este código para seu adversário</h2>
+    <div class="room-code" id="room-code-display" onclick="copyCode()">----</div>
+    <p style="color:#556; font-size:0.75rem; text-align:center;">Toque no código para copiar</p>
+    <div class="spinner"></div>
+    <p style="text-align:center; color:#a0aec0;">Aguardando o oponente entrar...</p>
+    <button class="btn btn-danger" style="margin-top:30px;" onclick="location.reload()">Cancelar</button>
+  </div>
+</section>
+
+<!-- GAME -->
+<section id="screen-game" class="screen">
+  <div id="topbar">
+    <div class="player-tag me">
+      <div class="name" id="me-name">Você</div>
+      <div class="score" id="me-score">0</div>
+    </div>
+    <div class="player-tag opp">
+      <div class="name" id="opp-name">Oponente</div>
+      <div class="score" id="opp-score">0</div>
+    </div>
+  </div>
+  <div id="turn-indicator">Carregando...</div>
+  <div id="board-wrap"><div id="board"></div></div>
+  <div id="opp-powers"></div>
+  <div id="powers-panel">
+    <h3>Seus poderes</h3>
+    <div id="powers-list"></div>
+  </div>
+  <button class="btn btn-secondary" id="leave-btn" onclick="location.reload()">Sair da sala</button>
+</section>
+
+<!-- END MODAL -->
+<div id="end-modal-overlay">
+  <div id="end-modal" class="glass-panel">
+    <h1 id="end-title">🏆 Fim de Jogo!</h1>
+    <div id="end-scores"></div>
+    <button class="btn btn-primary" style="margin-top:22px;" onclick="location.reload()">Jogar Novamente</button>
+  </div>
+</div>
+
+<script>
+  const emojis = ['⚽','🎮','🚗','🃏','🔥','⚡','💎','🎲','🎯','🎨','🎸','🚀'];
+
+  const allPowers = [
+    { id:'reshuffle', name:'🔀 Reembaralhar', desc:'Embaralha as cartas restantes.', category:'utility' },
+    { id:'glitch', name:'📶 Hack Visual', desc:'Chuvisco na tela do oponente no turno dele.', category:'attack' },
+    { id:'bet', name:'🎰 Aposta no Erro', desc:'Se o oponente errar, você ganha 1 ponto.', category:'attack' },
+    { id:'bomb', name:'💣 Bomba', desc:'Marca um par automaticamente pra você.', category:'utility' },
+    { id:'vision', name:'👁️ Visão Raio-X', desc:'Só você vê todas as cartas por 1s.', category:'utility' },
+    { id:'earthquake', name:'🌎 Terremoto', desc:'Tremida na tela do oponente no turno dele.', category:'attack' },
+    { id:'fog', name:'🌫️ Neblina', desc:'Borra a tela do oponente no turno dele.', category:'attack' },
+    { id:'blackout', name:'⬛ Apagão', desc:'Escurece quase tudo pro oponente.', category:'attack' },
+    { id:'thief', name:'🥷 Mão Leve', desc:'Rouba 1 ponto do oponente.', category:'attack' },
+    { id:'double', name:'✨ Pontos em Dobro', desc:'Seu próximo acerto vale 2 pontos.', category:'support' },
+    { id:'sabotage', name:'☠️ Sabotagem', desc:'O próximo acerto do oponente não vale ponto.', category:'attack' },
+    { id:'shield', name:'🛡️ Escudo', desc:'Bloqueia o próximo ataque ou roubo.', category:'support' },
+    { id:'extra', name:'🌬️ Fôlego Extra', desc:'Garante uma jogada extra se errar.', category:'support' },
+    { id:'hint', name:'💡 Dica de Mestre', desc:'Só você vê 2 cartas aleatórias por 2s.', category:'utility' },
+    { id:'gravity', name:'🔄 Inversão', desc:'Troca sua pontuação com a do oponente.', category:'support' }
+  ];
+
+  let myPlayer = null, myName = '', roomCode = null, room = null;
+  let localRevealIds = null; // reveal local-only (vision/hint), nunca é salvo no Firebase
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+    document.getElementById(id).classList.add('show');
+  }
+
+  function genCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c = '';
+    for (let i=0;i<4;i++) c += chars[Math.floor(Math.random()*chars.length)];
+    return c;
+  }
+
+  async function loadRoom(code) {
+    try {
+      const { ref, get, db } = window.__fb;
+      const snap = await get(ref(db, 'rooms/' + code));
+      return snap.exists() ? snap.val() : null;
+    } catch (e) { console.error('Erro ao ler sala', e); return null; }
+  }
+
+  async function saveRoom(r) {
+    r.updatedAt = Date.now();
+    try {
+      const { ref, set, db } = window.__fb;
+      await set(ref(db, 'rooms/' + r.code), r);
+    } catch (e) { console.error('Erro ao salvar sala', e); formAlert('Erro de conexão com o Firebase. Confira o firebaseConfig.'); }
+  }
+
+  function formAlert(msg) {
+    document.getElementById('form-alert').innerText = msg;
+  }
+
+  function initDeckAndPowers(r) {
+    let gameEmojis = emojis.slice(0, r.pairs);
+    let deck = [...gameEmojis, ...gameEmojis];
+    deck.sort(() => Math.random() - 0.5);
+    r.cards = deck.map((emoji, index) => ({ id:index, emoji, isMatched:false, isFlipped:false }));
+
+    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+    const byCat = cat => shuffle(allPowers.filter(p => p.category === cat).map(p => p.id));
+    let attack = byCat('attack'), support = byCat('support'), utility = byCat('utility');
+    let p1 = [attack.pop(), support.pop(), utility.pop()];
+    let p2 = [attack.pop(), support.pop(), utility.pop()];
+    let remaining = shuffle([...attack, ...support, ...utility]);
+    p1.push(remaining.pop());
+    p2.push(remaining.pop());
+    r.powers = { 1: p1.filter(Boolean), 2: p2.filter(Boolean) };
+    r.usedPowers = { 1: [], 2: [] };
+  }
+
+  async function createRoom() {
+    myName = document.getElementById('name-input').value.trim() || 'Jogador 1';
+    const pairs = parseInt(document.getElementById('pairs-select').value) || 8;
+    formAlert('Criando sala...');
+
+    let code, existing, attempts = 0;
+    do {
+      code = genCode();
+      existing = await loadRoom(code);
+      attempts++;
+    } while (existing && attempts < 6);
+
+    roomCode = code;
+    myPlayer = 1;
+    room = {
+      code, status: 'waiting', pairs,
+      players: { 1: { name: myName }, 2: null },
+      cards: [], flippedCards: [], currentPlayer: 1,
+      scores: { 1:0, 2:0 }, matchedPairs: 0, lockBoard: false,
+      betOnMiss: { active:false, owner:null }, doublePoints: false,
+      sabotage: { active:false, owner:null }, shield: { 1:false, 2:false },
+      extraTurn: false,
+      pendingEffects: { 1:[], 2:[] }, effects: { 1:[], 2:[] },
+      powers: { 1:[], 2:[] }, usedPowers: { 1:[], 2:[] }
+    };
+    await saveRoom(room);
+    document.getElementById('room-code-display').innerText = code;
+    showScreen('screen-waiting');
+    startListening();
+  }
+
+  async function joinRoom() {
+    myName = document.getElementById('name-input').value.trim() || 'Jogador 2';
+    const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+    if (!code) { formAlert('Digite um código de sala.'); return; }
+    formAlert('Procurando sala...');
+
+    const found = await loadRoom(code);
+    if (!found) { formAlert('Sala não encontrada. Confira o código.'); return; }
+    if (found.status !== 'waiting' || found.players[2]) { formAlert('Sala cheia ou já em andamento.'); return; }
+
+    found.players[2] = { name: myName };
+    found.status = 'playing';
+    found.currentPlayer = 1;
+    initDeckAndPowers(found);
+
+    roomCode = code;
+    myPlayer = 2;
+    room = found;
+    await saveRoom(room);
+    showScreen('screen-game');
+    renderGame();
+    startListening();
+  }
+
+  let roomListenerRef = null;
+
+  function startListening() {
+    stopListening();
+    const { ref, onValue, db } = window.__fb;
+    roomListenerRef = ref(db, 'rooms/' + roomCode);
+    onValue(roomListenerRef, (snapshot) => {
+      if (!snapshot.exists()) return;
+      const wasWaiting = room && room.status === 'waiting';
+      room = snapshot.val();
+      if (wasWaiting && room.status === 'playing') {
+        showScreen('screen-game');
+      }
+      if (document.getElementById('screen-game').classList.contains('show')) {
+        renderGame();
+      }
+      if (room.status === 'finished') showEndModal();
+    }, (err) => {
+      console.error('Erro no listener do Firebase', err);
+    });
+  }
+
+  function stopListening() {
+    if (roomListenerRef) {
+      const { off } = window.__fb;
+      off(roomListenerRef);
+      roomListenerRef = null;
+    }
+  }
+
+  function copyCode() {
+    if (!roomCode) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(roomCode).then(() => showAlert('Código copiado!', true)).catch(() => {});
+    }
+  }
+
+  let alertTimeout;
+  function showAlert(msg, isGood = true) {
+    const box = document.getElementById('alert-box');
+    box.innerText = msg;
+    box.style.borderColor = isGood ? 'var(--good)' : '#ffcc00';
+    box.style.boxShadow = isGood ? '0 0 20px rgba(0,255,136,0.4)' : '0 0 20px rgba(255,204,0,0.4)';
+    box.classList.add('show');
+    clearTimeout(alertTimeout);
+    alertTimeout = setTimeout(() => box.classList.remove('show'), 2600);
+  }
+
+  function switchTurn(r) {
+    const leaving = r.currentPlayer;
+    const next = leaving === 1 ? 2 : 1;
+    r.effects[leaving] = [];
+    r.effects[next] = r.pendingEffects[next] || [];
+    r.pendingEffects[next] = [];
+    r.currentPlayer = next;
+  }
+
+  function applyMatch(r, id1, id2) {
+    r.cards.find(c => c.id === id1).isMatched = true;
+    r.cards.find(c => c.id === id2).isMatched = true;
+    let sabotaged = false;
+    if (r.sabotage.active && r.sabotage.owner !== r.currentPlayer) {
+      sabotaged = true;
+      r.sabotage = { active:false, owner:null };
+    } else {
+      let pts = r.doublePoints ? 2 : 1;
+      r.scores[r.currentPlayer] += pts;
+      r.doublePoints = false;
+    }
+    r.matchedPairs++;
+    if (r.matchedPairs === r.pairs) r.status = 'finished';
+    return { sabotaged };
+  }
+
+  async function flipCard(cardId) {
+    if (!room || room.status !== 'playing') return;
+    if (room.currentPlayer !== myPlayer) { showAlert('Aguarde sua vez!', false); return; }
+    if (room.lockBoard) return;
+    const card = room.cards.find(c => c.id === cardId);
+    if (!card || card.isFlipped || card.isMatched) return;
+
+    card.isFlipped = true;
+    room.flippedCards.push({ id: cardId, emoji: card.emoji });
+    renderGame();
+    await saveRoom(room);
+
+    if (room.flippedCards.length === 2) {
+      room.lockBoard = true;
+      renderGame();
+      await saveRoom(room);
+      const [c1, c2] = room.flippedCards;
+      const isMatch = c1.emoji === c2.emoji;
+      setTimeout(async () => {
+        if (isMatch) await handleMatch(c1.id, c2.id);
+        else await handleMiss(c1.id, c2.id);
+      }, 950);
+    }
+  }
+
+  async function handleMatch(id1, id2) {
+    const { sabotaged } = applyMatch(room, id1, id2);
+    room.flippedCards = [];
+    room.lockBoard = false;
+    await saveRoom(room);
+    renderGame();
+    if (sabotaged) showAlert('🚫 Sabotagem! Par não valeu pontos!', false);
+    if (room.status === 'finished') showEndModal();
+  }
+
+  async function handleMiss(id1, id2) {
+    room.cards.find(c => c.id === id1).isFlipped = false;
+    room.cards.find(c => c.id === id2).isFlipped = false;
+    room.flippedCards = [];
+
+    let betMsg = null;
+    if (room.betOnMiss.active && room.betOnMiss.owner !== room.currentPlayer) {
+      room.scores[room.betOnMiss.owner] += 1;
+      betMsg = '💸 Aposta pagou! Ponto pro apostador.';
+      room.betOnMiss = { active:false, owner:null };
+    }
+
+    if (room.extraTurn) {
+      room.extraTurn = false;
+      room.lockBoard = false;
+      await saveRoom(room);
+      renderGame();
+      if (betMsg) showAlert(betMsg, true);
+      showAlert('🔥 Errou, mas ganhou jogada extra!', true);
+      return;
+    }
+
+    switchTurn(room);
+    room.lockBoard = false;
+    await saveRoom(room);
+    renderGame();
+    if (betMsg) showAlert(betMsg, true);
+  }
+
+  function powerAddEffect(r, effectClass) {
+    const opponent = r.currentPlayer === 1 ? 2 : 1;
+    if (r.shield[opponent]) { r.shield[opponent] = false; return { blocked:true }; }
+    r.pendingEffects[opponent].push(effectClass);
+    return { blocked:false };
+  }
+
+  async function usePower(powerId) {
+    if (!room || room.status !== 'playing') return;
+    if (room.currentPlayer !== myPlayer) { showAlert('Aguarde sua vez!', false); return; }
+    if (room.flippedCards.length > 0 || room.lockBoard) { showAlert('Aguarde a jogada atual terminar.', false); return; }
+    if (room.usedPowers[myPlayer].includes(powerId)) return;
+
+    let msg = '', good = true;
+    switch (powerId) {
+      case 'reshuffle': {
+        let unmatched = room.cards.filter(c => !c.isMatched);
+        let indices = unmatched.map(c => room.cards.indexOf(c));
+        let shuffled = [...unmatched].sort(() => Math.random() - 0.5);
+        indices.forEach((idx, i) => { room.cards[idx] = shuffled[i]; });
+        msg = '🌪️ Mesa reembaralhada!';
+        break;
+      }
+      case 'glitch': { const res = powerAddEffect(room, 'effect-chuvisco'); msg = res.blocked ? '🛡️ Bloqueado pelo escudo!' : '📶 Hack visual plantado!'; good = !res.blocked; break; }
+      case 'fog': { const res = powerAddEffect(room, 'effect-neblina'); msg = res.blocked ? '🛡️ Bloqueado pelo escudo!' : '🌫️ Neblina plantada!'; good = !res.blocked; break; }
+      case 'earthquake': { const res = powerAddEffect(room, 'effect-terremoto'); msg = res.blocked ? '🛡️ Bloqueado pelo escudo!' : '🌎 Terremoto plantado!'; good = !res.blocked; break; }
+      case 'blackout': { const res = powerAddEffect(room, 'effect-apagao'); msg = res.blocked ? '🛡️ Bloqueado pelo escudo!' : '⬛ Apagão plantado!'; good = !res.blocked; break; }
+      case 'bet': room.betOnMiss = { active:true, owner: myPlayer }; msg = '🎰 Aposta armada!'; break;
+      case 'bomb': {
+        let unmatched = room.cards.filter(c => !c.isMatched);
+        if (unmatched.length > 0) {
+          let targetEmoji = unmatched[0].emoji;
+          let pair = room.cards.filter(c => c.emoji === targetEmoji);
+          applyMatch(room, pair[0].id, pair[1].id);
+        }
+        msg = '💣 Par revelado automaticamente!';
+        break;
+      }
+      case 'vision': {
+        localRevealIds = room.cards.filter(c => !c.isMatched).map(c => c.id);
+        renderGame();
+        setTimeout(() => { localRevealIds = null; renderGame(); }, 1000);
+        msg = '👁️ Visão Raio-X (só você vê)!';
+        break;
+      }
+      case 'hint': {
+        let unmatched = room.cards.filter(c => !c.isMatched);
+        unmatched.sort(() => Math.random() - 0.5);
+        localRevealIds = unmatched.slice(0, 2).map(c => c.id);
+        renderGame();
+        setTimeout(() => { localRevealIds = null; renderGame(); }, 2000);
+        msg = '💡 Dica revelada (só você vê)!';
+        break;
+      }
+      case 'thief': {
+        const opponent = myPlayer === 1 ? 2 : 1;
+        if (room.shield[opponent]) { room.shield[opponent] = false; msg = '🛡️ Roubo bloqueado!'; good = false; break; }
+        if (room.scores[opponent] > 0) { room.scores[opponent]--; room.scores[myPlayer]++; msg = '🥷 1 ponto roubado!'; }
+        else { msg = '❌ Oponente sem pontos pra roubar!'; good = false; }
+        break;
+      }
+      case 'double': room.doublePoints = true; msg = '✨ Próximo acerto vale o dobro!'; break;
+      case 'sabotage': room.sabotage = { active:true, owner: myPlayer }; msg = '☠️ Armadilha preparada!'; break;
+      case 'shield': room.shield[myPlayer] = true; msg = '🛡️ Escudo ativado!'; break;
+      case 'extra': room.extraTurn = true; msg = '🌬️ Jogada extra garantida!'; break;
+      case 'gravity': { let t = room.scores[1]; room.scores[1] = room.scores[2]; room.scores[2] = t; msg = '🔄 Pontuações invertidas!'; break; }
+    }
+
+    room.usedPowers[myPlayer].push(powerId);
+    await saveRoom(room);
+    renderGame();
+    showAlert(msg, good);
+  }
+
+  function renderGame() {
+    if (!room) return;
+    const opp = myPlayer === 1 ? 2 : 1;
+
+    document.getElementById('me-name').innerText = (room.players[myPlayer] && room.players[myPlayer].name) || 'Você';
+    document.getElementById('opp-name').innerText = (room.players[opp] && room.players[opp].name) || 'Oponente';
+    document.getElementById('me-score').innerText = room.scores[myPlayer];
+    document.getElementById('opp-score').innerText = room.scores[opp];
+
+    const turnEl = document.getElementById('turn-indicator');
+    const myTurn = room.currentPlayer === myPlayer;
+    turnEl.innerText = myTurn
+      ? `🎯 Sua vez · Pares ${room.matchedPairs}/${room.pairs}`
+      : `Vez de ${(room.players[opp]||{}).name || 'oponente'} · Pares ${room.matchedPairs}/${room.pairs}`;
+    turnEl.classList.toggle('mine', myTurn);
+    turnEl.classList.toggle('theirs', !myTurn);
+
+    ['effect-neblina','effect-apagao','effect-chuvisco','effect-terremoto'].forEach(cls => {
+      document.body.classList.toggle(cls, (room.effects[myPlayer] || []).includes(cls));
+    });
+
+    renderBoard(myTurn);
+    renderPowers(myTurn);
+
+    const usedOpp = (room.usedPowers[opp] || []).length;
+    document.getElementById('opp-powers').innerText = `Poderes do oponente usados: ${usedOpp}/4`;
+  }
+
+  function renderBoard(myTurn) {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    room.cards.forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      const forceShow = localRevealIds && localRevealIds.includes(card.id);
+      if (card.isFlipped || card.isMatched || forceShow) el.classList.add('flipped');
+      if (card.isMatched) el.classList.add('matched');
+      const canClick = myTurn && !room.lockBoard && room.flippedCards.length < 2 && !card.isFlipped && !card.isMatched;
+      if (!canClick) el.classList.add('locked');
+      el.innerHTML = `
+        <div class="card-face card-back"></div>
+        <div class="card-face card-front">${card.emoji}</div>
+      `;
+      el.addEventListener('click', () => { if (canClick) flipCard(card.id); });
+      board.appendChild(el);
+    });
+  }
+
+  function renderPowers(myTurn) {
+    const list = document.getElementById('powers-list');
+    list.innerHTML = '';
+    const myPowerIds = room.powers[myPlayer] || [];
+    myPowerIds.forEach(pid => {
+      const power = allPowers.find(p => p.id === pid);
+      if (!power) return;
+      const used = (room.usedPowers[myPlayer] || []).includes(pid);
+      const btn = document.createElement('button');
+      btn.className = 'power-btn' + (!myTurn && !used ? ' locked-turn' : '');
+      btn.disabled = used;
+      btn.innerHTML = `<strong>${power.name}</strong><div class="power-desc">${used ? 'ESGOTADO' : power.desc}</div>`;
+      btn.onclick = () => usePower(pid);
+      list.appendChild(btn);
+    });
+  }
+
+  function showEndModal() {
+    stopListening();
+    let title;
+    if (room.scores[1] > room.scores[2]) title = `🏆 ${(room.players[1]||{}).name || 'Jogador 1'} Venceu!`;
+    else if (room.scores[2] > room.scores[1]) title = `🏆 ${(room.players[2]||{}).name || 'Jogador 2'} Venceu!`;
+    else title = '⚖️ Empate!';
+
+    document.getElementById('end-title').innerText = title;
+    document.getElementById('end-scores').innerHTML = `
+      <div class="end-score-row"><span>${(room.players[1]||{}).name || 'Jogador 1'}</span><strong>${room.scores[1]} pts</strong></div>
+      <div class="end-score-row"><span>${(room.players[2]||{}).name || 'Jogador 2'}</span><strong>${room.scores[2]} pts</strong></div>
+    `;
+    document.getElementById('end-modal-overlay').classList.add('show');
+  }
+</script>
+</body>
+</html>
